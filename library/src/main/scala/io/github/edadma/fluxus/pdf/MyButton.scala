@@ -1,4 +1,4 @@
-package io.github.edadma.fluxus_library_template
+package io.github.edadma.fluxus.pdf
 
 import io.github.edadma.fluxus.*
 import org.scalajs.dom

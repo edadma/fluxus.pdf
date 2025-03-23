@@ -1,7 +1,7 @@
-package io.github.edadma.fluxus_library_template.examples
+package io.github.edadma.fluxus.pdf.examples
 
 import io.github.edadma.fluxus.*
-import io.github.edadma.fluxus_library_template.{MyButton, MyButtonProps}
+import io.github.edadma.fluxus.pdf.{MyButton, MyButtonProps}
 import org.scalajs.dom.MouseEvent
 
 object TestApp {

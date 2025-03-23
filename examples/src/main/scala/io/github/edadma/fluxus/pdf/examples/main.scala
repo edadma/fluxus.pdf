@@ -1,4 +1,4 @@
-package io.github.edadma.fluxus_library_template.examples
+package io.github.edadma.fluxus.pdf.examples
 
 import io.github.edadma.fluxus.render
 

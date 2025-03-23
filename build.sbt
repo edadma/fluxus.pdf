@@ -63,7 +63,7 @@ lazy val library = project
     libraryDependencies ++= Seq(
       "org.scalatest"    %%% "scalatest" % "3.2.19" % "test",
       "com.lihaoyi"      %%% "pprint"    % "0.9.0"  % "test",
-      "io.github.edadma" %%% "fluxus"    % "0.0.2",
+      "io.github.edadma" %%% "fluxus"    % "0.0.5",
     ),
     jsEnv                                  := new org.scalajs.jsenv.nodejs.NodeJSEnv(),
     scalaJSUseMainModuleInitializer        := true,
@@ -83,7 +83,7 @@ lazy val examples = project
   .settings(
     name := "examples",
     libraryDependencies ++= Seq(
-      "io.github.edadma" %%% "fluxus" % "0.0.1",
+      "io.github.edadma" %%% "fluxus" % "0.0.5",
     ),
     scalaJSUseMainModuleInitializer := true,
     publish / skip                  := true,
