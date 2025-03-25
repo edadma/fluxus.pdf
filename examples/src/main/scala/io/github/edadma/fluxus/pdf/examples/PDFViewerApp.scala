@@ -374,7 +374,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
     // Always keep the canvas in the DOM, but overlay a loading indicator
     div(
       ref   := containerRef,
-      cls   := "relative border border-gray-300 bg-white",
+      cls   := "relative border border-gray-300 bg-transparent",
       style := maxHeightStyle, // Apply max height if provided
 
       // The canvas
