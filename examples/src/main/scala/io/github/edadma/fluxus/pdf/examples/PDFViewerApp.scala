@@ -121,7 +121,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
                     val context = canvas.getContext("2d")
 
                     // Get device pixel ratio for better scaling
-                    val pixelRatio = Option(dom.window.devicePixelRatio.asInstanceOf[Double]).getOrElse(1.0)
+                    val pixelRatio = Option(dom.window.devicePixelRatio).getOrElse(1.0)
 
                     // Get container width (parent element or 800px default width)
                     val containerWidth = Option(canvas.parentElement)
