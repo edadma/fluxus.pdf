@@ -72,7 +72,6 @@ object PDFViewerApp {
     )
   }
 }
-
 def PDFViewer(props: PDFViewerProps): FluxusNode = {
   // Create a reference to our canvas element
   val canvasRef                    = useRef[dom.html.Canvas]()
@@ -177,12 +176,12 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
 
   // Render the PDF viewer UI
   div(
-    cls := "pdf-viewer-container w-96",
+    cls := "w-96",
 
     // Error display
     error.map(msg =>
       div(
-        cls := "error bg-red-100 text-red-700 p-4 rounded mb-4",
+        cls := "bg-red-100 text-red-700 p-4 rounded mb-4",
         div(cls := "font-bold", "Error loading PDF:"),
         div(msg),
       ),
@@ -190,19 +189,18 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
 
     // Always keep the canvas in the DOM, but overlay a loading indicator
     div(
-      cls := "canvas-container relative border border-gray-300 bg-white",
+      cls := "relative border border-gray-300 bg-white",
       // The canvas
       canvas(
         ref := canvasRef,
-        cls := "pdf-canvas block w-96",
-        // No inline style here to keep it simple
+        cls := "block w-96",
       ),
 
       // Conditional loading overlay
       if (isLoading)
         div(
           cls := "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30",
-          div(cls := "bg-blue p-3 rounded shadow", "Loading PDF..."),
+          div(cls := "bg-blue-500 p-3 rounded shadow", "Loading PDF..."),
         )
       else null,
     ),
