@@ -1,0 +1,28 @@
+; Fluxus.pdf library sources
+
+# core
+./library/src/main/scala/io/github/edadma/fluxus/core
+
+# example apps
+./examples/src/main/scala/io/github/edadma/fluxus/pdf/examples
+PDFViewerApp.scala
+
+# build files
+./
+build.sbt
+main.js
+package.json
+tailwind.config.js
+vite.config.js
+./project
+plugins.sbt
+
+# support for running test apps
+./
+index.html
+./library/src/main/resources/styles
+tailwind.css
+
+# docs
+./
+README.md
