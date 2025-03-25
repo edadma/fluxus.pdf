@@ -23,6 +23,10 @@ object PDFjs extends js.Object {
   val GlobalWorkerOptions: GlobalWorkerOptions = js.native
 }
 
+@js.native
+@JSImport("pdfjs-dist/build/pdf.worker.entry", JSImport.Namespace)
+object PDFjsWorker extends js.Object
+
 // Define necessary PDF.js types
 @js.native
 trait PDFDocumentLoadingTask extends js.Object {
@@ -62,8 +66,9 @@ object PDFViewerApp {
           cls := "card-body",
           h2(cls := "card-title", "PDF.js Viewer"),
           p("Simple PDF viewer using Fluxus and PDF.js"),
-          PDFViewer <> PDFViewerProps(url =
-            "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf",
+          PDFViewer <> PDFViewerProps(
+            url =
+              "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf",
           ),
         ),
       ),
@@ -93,8 +98,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
 
         try {
           // Set the worker source
-          PDFjs.GlobalWorkerOptions.workerSrc =
-            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+          PDFjs.GlobalWorkerOptions.workerSrc = "./node_modules/pdfjs-dist/build/pdf.worker.min.js"
 
           logger.debug("Starting PDF load process", category = "PDFViewer", Map("url" -> props.url))
 
