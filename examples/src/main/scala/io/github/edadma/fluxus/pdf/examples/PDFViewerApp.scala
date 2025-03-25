@@ -57,7 +57,7 @@ object PDFViewerApp {
     div(
       cls := "container mx-auto p-4",
       div(
-        cls := "card bg-base-100 shadow-xl",
+        cls := "card bg-base-300 shadow-xl",
         div(
           cls := "card-body",
           h2(cls := "card-title", "PDF.js Viewer"),
