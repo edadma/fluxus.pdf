@@ -177,7 +177,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
 
   // Render the PDF viewer UI
   div(
-    cls := "pdf-viewer-container w-full",
+    cls := "pdf-viewer-container w-96",
 
     // Error display
     error.map(msg =>
@@ -192,10 +192,9 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
     div(
       cls := "canvas-container relative border border-gray-300 bg-white",
       // The canvas
-      createElement(
-        "canvas",
+      canvas(
         ref := canvasRef,
-        cls := "pdf-canvas block w-full",
+        cls := "pdf-canvas block w-96",
         // No inline style here to keep it simple
       ),
 
@@ -203,7 +202,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
       if (isLoading)
         div(
           cls := "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30",
-          div(cls := "bg-white p-3 rounded shadow", "Loading PDF..."),
+          div(cls := "bg-blue p-3 rounded shadow", "Loading PDF..."),
         )
       else null,
     ),
