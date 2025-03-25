@@ -219,17 +219,16 @@ object PDFViewerApp {
 
 case class PDFViewerProps(
     url: String,
-    className: String = "w-full",    // Controls the overall component width
+    className: String = "",          // Optional additional classes
     maxHeight: Option[String] = None, // Optional max height constraint
 )
 
 def PDFViewer(props: PDFViewerProps): FluxusNode = {
   // Create a reference to our canvas element
-  val canvasRef                       = useRef[dom.html.Canvas]()
-  val containerRef                    = useRef[dom.html.Div]()
-  val (isLoading, setIsLoading, _)    = useState(true)
-  val (error, setError, _)            = useState(Option.empty[String])
-  val (zoomScale, _, updateZoomScale) = useState(.5) // Default 100% zoom
+  val canvasRef                                  = useRef[dom.html.Canvas]()
+  val (isLoading, setIsLoading, _)               = useState(true)
+  val (error, setError, _)                       = useState(Option.empty[String])
+  val (zoomScale, setZoomScale, updateZoomScale) = useState(1.0) // Default 100% zoom
 
   // Effect to load and render the PDF
   useEffect(
@@ -259,38 +258,56 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
                   logger.debug("PDF page loaded", category = "PDFViewer")
 
                   // Render to canvas with improved quality
-                  if (canvasRef.current != null && containerRef.current != null) {
+                  if (canvasRef.current != null) {
                     val canvas  = canvasRef.current
                     val context = canvas.getContext("2d")
 
                     // Get device pixel ratio for better scaling
-                    val pixelRatio = Option(dom.window.devicePixelRatio).getOrElse(1.0)
+                    val pixelRatio = Option(dom.window.devicePixelRatio.asInstanceOf[Double]).getOrElse(1.0)
 
-                    // Get container width
-                    val containerWidth = containerRef.current.clientWidth
+                    // Get container width (parent element or 800px default width)
+                    val containerWidth = Option(canvas.parentElement)
+                      .map(_.clientWidth)
+                      .filter(_ > 0)
+                      .getOrElse(800)
 
                     // Get the default viewport at scale 1
                     val defaultViewport = page.getViewport(js.Dynamic.literal(scale = 1.0))
                     val pdfWidth        = defaultViewport.width.asInstanceOf[Double]
 
-                    // Get base scale to fit container width
+                    // Calculate base scale to fit container width
                     val baseScale = containerWidth / pdfWidth
 
-                    // Apply zoom factor to the base scale
-                    val scale = baseScale * zoomScale
+                    // Apply zoom factor to get final scale
+                    val finalScale = baseScale * zoomScale
 
                     // Create a viewport scaled for the display
                     val viewport = page.getViewport(js.Dynamic.literal(
-                      scale = scale * pixelRatio, // Scale up for device pixel ratio
+                      scale = finalScale * pixelRatio, // Scale up for device pixel ratio
                     ))
 
                     // Set canvas dimensions to the scaled size (internal resolution)
                     canvas.width = viewport.width.asInstanceOf[Int]
                     canvas.height = viewport.height.asInstanceOf[Int]
 
+                    // Calculate display dimensions in CSS pixels
+                    val displayWidth  = Math.round(viewport.width.asInstanceOf[Double] / pixelRatio)
+                    val displayHeight = Math.round(viewport.height.asInstanceOf[Double] / pixelRatio)
+
                     // Set display size (CSS pixels)
-                    canvas.style.width = s"${Math.round(viewport.width.asInstanceOf[Double] / pixelRatio)}px"
-                    canvas.style.height = s"${Math.round(viewport.height.asInstanceOf[Double] / pixelRatio)}px"
+                    canvas.style.width = s"${displayWidth}px"
+                    canvas.style.height = s"${displayHeight}px"
+
+                    // Make sure our outer container has the right sizing
+                    Option(canvas.parentElement).foreach { container =>
+                      container.style.position = "relative"
+                      container.style.width = s"${displayWidth}px"
+                      // Apply max height if specified, otherwise use actual height
+                      props.maxHeight match {
+                        case Some(maxH) => container.style.maxHeight = maxH
+                        case None       => container.style.height = s"${displayHeight}px"
+                      }
+                    }
 
                     logger.debug(
                       "Canvas dimensions set",
@@ -298,9 +315,10 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
                       Map(
                         "internalWidth"  -> canvas.width.toString,
                         "internalHeight" -> canvas.height.toString,
-                        "displayWidth"   -> canvas.style.width,
-                        "displayHeight"  -> canvas.style.height,
+                        "displayWidth"   -> displayWidth.toString,
+                        "displayHeight"  -> displayHeight.toString,
                         "pixelRatio"     -> pixelRatio.toString,
+                        "zoomScale"      -> zoomScale.toString,
                       ),
                     )
 
@@ -352,15 +370,38 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
       // Cleanup function
       () => {}
     },
-    Seq(props.url), // Re-run if the URL changes
+    Seq(props.url, zoomScale), // Re-run if the URL or zoom changes
   )
 
-  // Style for max height if provided
-  val maxHeightStyle = props.maxHeight.map(h => s"max-height: $h;").getOrElse("")
+  // Simple zoom controls
+  def ZoomControls = {
+    div(
+      cls := "flex items-center space-x-2 mb-2",
+      button(
+        cls     := "btn btn-sm",
+        onClick := (() => updateZoomScale(current => Math.max(0.25, current - 0.25))),
+        "Zoom Out",
+      ),
+      span(cls := "text-sm", f"${zoomScale * 100}%.0f%%"),
+      button(
+        cls     := "btn btn-sm",
+        onClick := (() => updateZoomScale(current => Math.min(3.0, current + 0.25))),
+        "Zoom In",
+      ),
+      button(
+        cls     := "btn btn-sm ml-auto",
+        onClick := (() => setZoomScale(1.0)),
+        "Reset",
+      ),
+    )
+  }
 
-  // Render the PDF viewer UI
+  // Render the PDF viewer UI with simplified structure
   div(
-    cls := props.className,
+    cls := s"bg-white border border-gray-300 ${props.className}".trim,
+
+    // Add zoom controls
+    ZoomControls,
 
     // Error display
     error.map(msg =>
@@ -371,25 +412,189 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
       ),
     ),
 
-    // Always keep the canvas in the DOM, but overlay a loading indicator
-    div(
-      ref   := containerRef,
-      cls   := "relative border border-gray-300 bg-transparent",
-      style := maxHeightStyle, // Apply max height if provided
-
-      // The canvas
-      canvas(
-        ref := canvasRef,
-        cls := "block mx-auto bg-white", // No width/height classes - we'll set the size programmatically
-      ),
-
-      // Conditional loading overlay
-      if (isLoading)
-        div(
-          cls := "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30",
-          div(cls := "bg-blue-500 p-3 rounded shadow text-white", "Loading PDF..."),
-        )
-      else null,
+    // The canvas (sized programmatically)
+    canvas(
+      ref := canvasRef,
+      cls := "block", // No width/height classes - we size programmatically
     ),
+
+    // Conditional loading overlay (absolutely positioned)
+    if (isLoading)
+      div(
+        cls := "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30",
+        div(cls := "bg-blue-500 p-3 rounded shadow text-white", "Loading PDF..."),
+      )
+    else null,
   )
 }
+
+//def PDFViewer(props: PDFViewerProps): FluxusNode = {
+//  // Create a reference to our canvas element
+//  val canvasRef                       = useRef[dom.html.Canvas]()
+//  val containerRef                    = useRef[dom.html.Div]()
+//  val (isLoading, setIsLoading, _)    = useState(true)
+//  val (error, setError, _)            = useState(Option.empty[String])
+//  val (zoomScale, _, updateZoomScale) = useState(.5) // Default 100% zoom
+//
+//  // Effect to load and render the PDF
+//  useEffect(
+//    () => {
+//      // Define our load PDF function
+//      def loadPDF(): Unit = {
+//        setIsLoading(true)
+//
+//        try {
+//          // Set the worker source
+//          PDFjs.GlobalWorkerOptions.workerSrc =
+//            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+//
+//          logger.debug("Starting PDF load process", category = "PDFViewer", Map("url" -> props.url))
+//
+//          // Load the PDF document
+//          val loadingTask = PDFjs.getDocument(props.url)
+//
+//          loadingTask.promise.asInstanceOf[js.Promise[js.Dynamic]].toFuture.onComplete {
+//            case Success(pdfDoc) =>
+//              logger.debug("PDF document loaded", category = "PDFViewer", Map("numPages" -> pdfDoc.numPages.toString))
+//
+//              // Get the first page
+//              val pagePromise = pdfDoc.getPage(1).asInstanceOf[js.Promise[js.Dynamic]]
+//              pagePromise.toFuture.onComplete {
+//                case Success(page) =>
+//                  logger.debug("PDF page loaded", category = "PDFViewer")
+//
+//                  // Render to canvas with improved quality
+//                  if (canvasRef.current != null && containerRef.current != null) {
+//                    val canvas  = canvasRef.current
+//                    val context = canvas.getContext("2d")
+//
+//                    // Get device pixel ratio for better scaling
+//                    val pixelRatio = Option(dom.window.devicePixelRatio).getOrElse(1.0)
+//
+//                    // Get container width
+//                    val containerWidth = containerRef.current.clientWidth
+//
+//                    // Get the default viewport at scale 1
+//                    val defaultViewport = page.getViewport(js.Dynamic.literal(scale = 1.0))
+//                    val pdfWidth        = defaultViewport.width.asInstanceOf[Double]
+//
+//                    // Get base scale to fit container width
+//                    val baseScale = containerWidth / pdfWidth
+//
+//                    // Apply zoom factor to the base scale
+//                    val scale = baseScale * zoomScale
+//
+//                    // Create a viewport scaled for the display
+//                    val viewport = page.getViewport(js.Dynamic.literal(
+//                      scale = scale * pixelRatio, // Scale up for device pixel ratio
+//                    ))
+//
+//                    // Set canvas dimensions to the scaled size (internal resolution)
+//                    canvas.width = viewport.width.asInstanceOf[Int]
+//                    canvas.height = viewport.height.asInstanceOf[Int]
+//
+//                    // Set display size (CSS pixels)
+//                    canvas.style.width = s"${Math.round(viewport.width.asInstanceOf[Double] / pixelRatio)}px"
+//                    canvas.style.height = s"${Math.round(viewport.height.asInstanceOf[Double] / pixelRatio)}px"
+//
+//                    logger.debug(
+//                      "Canvas dimensions set",
+//                      category = "PDFViewer",
+//                      Map(
+//                        "internalWidth"  -> canvas.width.toString,
+//                        "internalHeight" -> canvas.height.toString,
+//                        "displayWidth"   -> canvas.style.width,
+//                        "displayHeight"  -> canvas.style.height,
+//                        "pixelRatio"     -> pixelRatio.toString,
+//                      ),
+//                    )
+//
+//                    // Render PDF page to the canvas
+//                    val renderContext = js.Dynamic.literal(
+//                      canvasContext = context,
+//                      viewport = viewport,
+//                    )
+//
+//                    val renderTask = page.render(renderContext)
+//                    renderTask.promise.asInstanceOf[js.Promise[js.Any]].toFuture.onComplete {
+//                      case Success(_) =>
+//                        logger.debug("PDF rendering completed successfully", category = "PDFViewer")
+//                        setIsLoading(false)
+//                      case Failure(renderError) =>
+//                        logger.error(
+//                          "PDF rendering failed",
+//                          category = "PDFViewer",
+//                          Map("error" -> renderError.toString),
+//                        )
+//                        setError(Some(s"Render error: ${renderError.getMessage}"))
+//                        setIsLoading(false)
+//                    }
+//                  } else {
+//                    setError(Some("Canvas element not available"))
+//                    setIsLoading(false)
+//                  }
+//                case Failure(pageError) =>
+//                  logger.error("Failed to load PDF page", category = "PDFViewer", Map("error" -> pageError.toString))
+//                  setError(Some(s"Page error: ${pageError.getMessage}"))
+//                  setIsLoading(false)
+//              }
+//            case Failure(pdfError) =>
+//              logger.error("Failed to load PDF document", category = "PDFViewer", Map("error" -> pdfError.toString))
+//              setError(Some(s"Document error: ${pdfError.getMessage}"))
+//              setIsLoading(false)
+//          }
+//        } catch {
+//          case e: Throwable =>
+//            logger.error("Exception during PDF loading", category = "PDFViewer", Map("error" -> e.toString))
+//            setError(Some(s"Loading error: ${e.getMessage}"))
+//            setIsLoading(false)
+//        }
+//      }
+//
+//      // Start loading right away
+//      loadPDF()
+//
+//      // Cleanup function
+//      () => {}
+//    },
+//    Seq(props.url), // Re-run if the URL changes
+//  )
+//
+//  // Style for max height if provided
+//  val maxHeightStyle = props.maxHeight.map(h => s"max-height: $h;").getOrElse("")
+//
+//  // Render the PDF viewer UI
+//  div(
+//    cls := props.className,
+//
+//    // Error display
+//    error.map(msg =>
+//      div(
+//        cls := "bg-red-100 text-red-700 p-4 rounded mb-4",
+//        div(cls := "font-bold", "Error loading PDF:"),
+//        div(msg),
+//      ),
+//    ),
+//
+//    // Always keep the canvas in the DOM, but overlay a loading indicator
+//    div(
+//      ref   := containerRef,
+//      cls   := "relative border border-gray-300 bg-transparent",
+//      style := maxHeightStyle, // Apply max height if provided
+//
+//      // The canvas
+//      canvas(
+//        ref := canvasRef,
+//        cls := "block mx-auto bg-white", // No width/height classes - we'll set the size programmatically
+//      ),
+//
+//      // Conditional loading overlay
+//      if (isLoading)
+//        div(
+//          cls := "absolute inset-0 flex items-center justify-center bg-black bg-opacity-30",
+//          div(cls := "bg-blue-500 p-3 rounded shadow text-white", "Loading PDF..."),
+//        )
+//      else null,
+//    ),
+//  )
+//}
