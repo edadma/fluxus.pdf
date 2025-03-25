@@ -228,7 +228,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
   val canvasRef                                  = useRef[dom.html.Canvas]()
   val (isLoading, setIsLoading, _)               = useState(true)
   val (error, setError, _)                       = useState(Option.empty[String])
-  val (zoomScale, setZoomScale, updateZoomScale) = useState(1.0) // Default 100% zoom
+  val (zoomScale, setZoomScale, updateZoomScale) = useState(0.5) // Default 100% zoom
 
   // Effect to load and render the PDF
   useEffect(
@@ -373,35 +373,9 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
     Seq(props.url, zoomScale), // Re-run if the URL or zoom changes
   )
 
-  // Simple zoom controls
-  def ZoomControls = {
-    div(
-      cls := "flex items-center space-x-2 mb-2",
-      button(
-        cls     := "btn btn-sm",
-        onClick := (() => updateZoomScale(current => Math.max(0.25, current - 0.25))),
-        "Zoom Out",
-      ),
-      span(cls := "text-sm", f"${zoomScale * 100}%.0f%%"),
-      button(
-        cls     := "btn btn-sm",
-        onClick := (() => updateZoomScale(current => Math.min(3.0, current + 0.25))),
-        "Zoom In",
-      ),
-      button(
-        cls     := "btn btn-sm ml-auto",
-        onClick := (() => setZoomScale(1.0)),
-        "Reset",
-      ),
-    )
-  }
-
   // Render the PDF viewer UI with simplified structure
   div(
     cls := s"bg-white border border-gray-300 ${props.className}".trim,
-
-    // Add zoom controls
-    ZoomControls,
 
     // Error display
     error.map(msg =>
