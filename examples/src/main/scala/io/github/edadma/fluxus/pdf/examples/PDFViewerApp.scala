@@ -380,7 +380,7 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
       // The canvas
       canvas(
         ref := canvasRef,
-        cls := "block", // No width/height classes - we'll set the size programmatically
+        cls := "block mx-auto bg-white", // No width/height classes - we'll set the size programmatically
       ),
 
       // Conditional loading overlay
