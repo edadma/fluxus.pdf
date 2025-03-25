@@ -225,10 +225,11 @@ case class PDFViewerProps(
 
 def PDFViewer(props: PDFViewerProps): FluxusNode = {
   // Create a reference to our canvas element
-  val canvasRef                    = useRef[dom.html.Canvas]()
-  val containerRef                 = useRef[dom.html.Div]()
-  val (isLoading, setIsLoading, _) = useState(true)
-  val (error, setError, _)         = useState(Option.empty[String])
+  val canvasRef                       = useRef[dom.html.Canvas]()
+  val containerRef                    = useRef[dom.html.Div]()
+  val (isLoading, setIsLoading, _)    = useState(true)
+  val (error, setError, _)            = useState(Option.empty[String])
+  val (zoomScale, _, updateZoomScale) = useState(.5) // Default 100% zoom
 
   // Effect to load and render the PDF
   useEffect(
@@ -272,8 +273,11 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
                     val defaultViewport = page.getViewport(js.Dynamic.literal(scale = 1.0))
                     val pdfWidth        = defaultViewport.width.asInstanceOf[Double]
 
-                    // Calculate scale to fit container width
-                    val scale = containerWidth / pdfWidth
+                    // Get base scale to fit container width
+                    val baseScale = containerWidth / pdfWidth
+
+                    // Apply zoom factor to the base scale
+                    val scale = baseScale * zoomScale
 
                     // Create a viewport scaled for the display
                     val viewport = page.getViewport(js.Dynamic.literal(
