@@ -1,7 +1,8 @@
 ; Fluxus.pdf library sources
 
-# core
-./library/src/main/scala/io/github/edadma/fluxus/core
+# PDF.js (pdfjs-dist) facade
+./library/src/main/scala/io/github/edadma/pdfjs
+PDF.scala
 
 # example apps
 ./examples/src/main/scala/io/github/edadma/fluxus/pdf/examples
