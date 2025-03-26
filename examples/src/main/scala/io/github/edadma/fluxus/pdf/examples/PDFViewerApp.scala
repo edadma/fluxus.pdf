@@ -7,6 +7,8 @@ import org.scalajs.dom
 import scala.concurrent.Future
 import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
 import scala.util.{Failure, Success}
+import scala.scalajs.js
+import scala.scalajs.js.typedarray.{ArrayBuffer, Uint8Array}
 
 object PDFViewerApp {
   def App: FluxusNode = {
@@ -18,10 +20,15 @@ object PDFViewerApp {
           cls := "card-body",
           h2(cls := "card-title", "PDF.js Viewer"),
           p("Simple PDF viewer using Fluxus and PDF.js"),
-          PDFViewer <> PDFViewerProps(
-            url = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf",
-            // "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-            // "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf",
+          FileUploadPDFViewer(),
+          hr(cls := "my-6"),
+          p(cls  := "text-sm text-gray-500", "Or view a sample PDF:"),
+          button(
+            cls := "btn btn-sm btn-primary",
+            onClick := (() => {
+              // You could implement logic to load a sample PDF here
+            }),
+            "View Mozilla Sample",
           ),
         ),
       ),
@@ -29,8 +36,74 @@ object PDFViewerApp {
   }
 }
 
+def FileUploadPDFViewer(): FluxusNode = {
+  val fileInputRef       = useRef[dom.html.Input]()
+  val (file, setFile, _) = useState[Option[dom.File]](None)
+
+  def handleFileChange(e: dom.Event): Unit = {
+    val input = e.target.asInstanceOf[dom.html.Input]
+    if (input.files.length > 0) {
+      setFile(Some(input.files(0)))
+    }
+  }
+
+  div(
+    cls := "w-full",
+
+    // File input section
+    div(
+      cls := "mb-4 p-4 border-2 border-dashed border-gray-300 rounded text-center",
+      if (file.isEmpty) {
+        div(
+          cls := "flex flex-col items-center justify-center",
+          p(cls := "mb-2", "Drop a PDF here or click to select"),
+          input(
+            ref      := fileInputRef,
+            cls      := "hidden",
+            typ      := "file",
+            accept   := "application/pdf,.pdf",
+            onChange := (handleFileChange(_)),
+          ),
+          button(
+            cls := "btn btn-primary",
+            onClick := (() => {
+              if (fileInputRef.current != null) {
+                fileInputRef.current.click()
+              }
+            }),
+            "Select PDF File",
+          ),
+        )
+      } else {
+        div(
+          cls := "flex items-center justify-between",
+          p(cls := "font-medium", s"Selected: ${file.get.name}"),
+          button(
+            cls     := "btn btn-sm btn-outline",
+            onClick := (() => setFile(None)),
+            "Change File",
+          ),
+        )
+      },
+    ),
+
+    // PDF Viewer section
+    file.map(pdfFile =>
+      div(
+        cls := "mt-4",
+        PDFViewer <> PDFViewerProps(
+          file = Some(pdfFile),
+          url = None,
+          className = "min-h-[500px]",
+        ),
+      ),
+    ),
+  )
+}
+
 case class PDFViewerProps(
-    url: String,
+    url: Option[String] = None,      // Optional URL to load PDF from
+    file: Option[dom.File] = None,   // Optional File object to load PDF from
     initialPage: Int = 1,            // Default to first page
     className: String = "",          // Optional additional classes
     maxHeight: Option[String] = None, // Optional max height constraint
@@ -45,10 +118,10 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
   val (error, setError, _)         = useState(Option.empty[String])
 
   // State for PDF document and pagination
-  val (pdfDocument, setPdfDocument, _)           = useState[Option[PDFDocument]](None)
-  val (currentPage, setCurrentPage, _)           = useState(props.initialPage)
-  val (totalPages, setTotalPages, _)             = useState(0)
-  val (zoomScale, setZoomScale, updateZoomScale) = useState(0.5) // Default 50% zoom
+  val (pdfDocument, setPdfDocument, _) = useState[Option[PDFDocument]](None)
+  val (currentPage, setCurrentPage, _) = useState(props.initialPage)
+  val (totalPages, setTotalPages, _)   = useState(0)
+  val (zoomScale, setZoomScale, _)     = useState(0.75) // Default 75% zoom
 
   // Effect to load the PDF document
   useEffect(
@@ -60,36 +133,169 @@ def PDFViewer(props: PDFViewerProps): FluxusNode = {
         // Set the worker source
         PDF.setWorkerSrc("./node_modules/pdfjs-dist/build/pdf.worker.min.js")
 
-        logger.debug("Starting PDF load process", category = "PDFViewer", Map("url" -> props.url))
+        logger.debug("Starting PDF load process", category = "PDFViewer")
 
-        // Load the PDF document using our facade
-        val documentTask = PDF.getDocument(PDFSource.Url(props.url))
+        // Choose between URL and File loading
+        if (props.file.isDefined) {
+          // File loading - avoids CORS issues
+          loadPDFFromFile(props.file.get)
+        } else if (props.url.isDefined) {
+          // URL loading - might have CORS issues
+          val url = props.url.get
+          logger.debug("Loading PDF from URL", category = "PDFViewer", Map("url" -> url))
+
+          // Try to use a CORS proxy or handle with custom fetch
+          loadPDFFromURL(url)
+        } else {
+          setError(Some("No PDF source provided (need either url or file)"))
+          setIsLoading(false)
+        }
+      } catch {
+        case e: Throwable => {
+          logger.error("Exception during PDF setup", category = "PDFViewer", Map("error" -> e.toString))
+          setError(Some(s"Setup error: ${e.getMessage}"))
+          setIsLoading(false)
+        }
+      }
+
+      // Helper function to load PDF from a file
+      def loadPDFFromFile(file: dom.File): Unit = {
+        val reader = new dom.FileReader()
+
+        reader.onload = { event =>
+          val arrayBuffer = event.target.asInstanceOf[dom.FileReader].result.asInstanceOf[ArrayBuffer]
+
+          val documentTask = PDF.getDocument(PDFSource.Data(arrayBuffer))
+
+          documentTask.toFuture.onComplete {
+            case Success(doc) => {
+              logger.debug(
+                "PDF document loaded from file",
+                category = "PDFViewer",
+                Map("numPages" -> doc.numPages.toString, "filename" -> file.name),
+              )
+              setPdfDocument(Some(doc))
+              setTotalPages(doc.numPages)
+              setIsLoading(false)
+            }
+            case Failure(pdfError) => {
+              logger.error(
+                "Failed to load PDF document from file",
+                category = "PDFViewer",
+                Map("error" -> pdfError.toString, "filename" -> file.name),
+              )
+              setError(Some(s"Document error: ${pdfError.getMessage}"))
+              setIsLoading(false)
+            }
+          }
+        }
+
+        reader.onerror = { _ =>
+          setError(Some("Failed to read the file"))
+          setIsLoading(false)
+        }
+
+        // Start reading the file as an ArrayBuffer
+        reader.readAsArrayBuffer(file)
+      }
+
+      // Helper function to load PDF from a URL (handles CORS issues when possible)
+      def loadPDFFromURL(url: String): Unit = {
+        // Option 1: Try direct loading first
+        val documentTask = PDF.getDocument(PDFSource.Url(url))
 
         documentTask.toFuture.onComplete {
           case Success(doc) => {
-            logger.debug("PDF document loaded", category = "PDFViewer", Map("numPages" -> doc.numPages.toString))
+            logger.debug(
+              "PDF document loaded from URL",
+              category = "PDFViewer",
+              Map("numPages" -> doc.numPages.toString, "url" -> url),
+            )
             setPdfDocument(Some(doc))
             setTotalPages(doc.numPages)
             setIsLoading(false)
           }
           case Failure(pdfError) => {
-            logger.error("Failed to load PDF document", category = "PDFViewer", Map("error" -> pdfError.toString))
-            setError(Some(s"Document error: ${pdfError.getMessage}"))
-            setIsLoading(false)
+            logger.error(
+              "Failed to load PDF document from URL",
+              category = "PDFViewer",
+              Map("error" -> pdfError.toString, "url" -> url),
+            )
+
+            // If direct loading fails, try to fetch the PDF data manually
+            logger.debug("Attempting to fetch PDF as ArrayBuffer", category = "PDFViewer")
+
+            // Option 2: Fetch as ArrayBuffer (may still have CORS issues)
+            // Create request options with proper types for Scala.js
+            val fetchOptions = new dom.RequestInit {
+              method = dom.HttpMethod.GET
+              mode = dom.RequestMode.cors
+              credentials = dom.RequestCredentials.omit
+            }
+
+            dom.fetch(url, fetchOptions)
+              .`then`(response => {
+                if (!response.ok) throw new Error(s"Network response was not ok: ${response.status}")
+                response.arrayBuffer()
+              })
+              .`then`(arrayBuffer => {
+                // Process the data as ArrayBuffer - convert Promise[ArrayBuffer] to ArrayBuffer
+                arrayBuffer.toFuture.onComplete {
+                  case Success(buffer) => {
+                    val source = PDFSource.Data(buffer)
+                    val task   = PDF.getDocument(source)
+
+                    task.toFuture.onComplete {
+                      case Success(doc) => {
+                        logger.debug(
+                          "PDF document loaded via fetch",
+                          category = "PDFViewer",
+                          Map("numPages" -> doc.numPages.toString),
+                        )
+                        setPdfDocument(Some(doc))
+                        setTotalPages(doc.numPages)
+                        setIsLoading(false)
+                      }
+                      case Failure(error) => {
+                        logger.error(
+                          "Failed to load PDF after fetch",
+                          category = "PDFViewer",
+                          Map("error" -> error.toString),
+                        )
+
+                        // If we get here, we've exhausted our loading options
+                        setError(Some(
+                          """CORS error: The PDF cannot be loaded due to cross-origin restrictions. 
+                            |Try uploading the PDF file directly instead of loading from URL.""".stripMargin,
+                        ))
+                        setIsLoading(false)
+                      }
+                    }
+                  }
+                  case Failure(error) => {
+                    logger.error(
+                      "Failed to convert arrayBuffer",
+                      category = "PDFViewer",
+                      Map("error" -> error.toString),
+                    )
+                    setError(Some(s"ArrayBuffer error: ${error.toString}"))
+                    setIsLoading(false)
+                  }
+                }
+              })
+              .`catch`(error => {
+                logger.error("Fetch error", category = "PDFViewer", Map("error" -> error.toString))
+                setError(Some(s"Fetch error: ${error.toString}\nTry uploading the file directly."))
+                setIsLoading(false)
+              })
           }
-        }
-      } catch {
-        case e: Throwable => {
-          logger.error("Exception during PDF loading", category = "PDFViewer", Map("error" -> e.toString))
-          setError(Some(s"Loading error: ${e.getMessage}"))
-          setIsLoading(false)
         }
       }
 
       // Cleanup function
       () => {}
     },
-    Seq(props.url), // Only re-run if the URL changes
+    Seq(props.url, props.file), // Re-run if the source changes
   )
 
   // Effect to render the current page
