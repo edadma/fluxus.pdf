@@ -57,7 +57,7 @@ object PDFJSLib extends js.Object {
 @js.native
 trait PDFDocumentLoadingTask extends js.Object {
   val promise: js.Promise[PDFDocumentProxy]           = js.native
-  def onProgress: js.Function1[PDFProgressData, Unit] = js.native
+  var onProgress: js.Function1[PDFProgressData, Unit] = js.native
   def cancel(): Unit                                  = js.native
 }
 
@@ -220,7 +220,7 @@ object PDF {
 }
 
 // Scala-friendly wrappers for better ergonomics
-class PDFDocumentTask(private val task: PDFDocumentLoadingTask) {
+class PDFDocumentTask(val task: PDFDocumentLoadingTask) {
   // Convert to Scala Future
   def toFuture: Future[PDFDocument] = {
     val promise = Promise[PDFDocument]()
